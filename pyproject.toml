@@ -20,6 +20,7 @@ dependencies = [
     "tenacity>=8.2.3",
     "google-api-python-client>=2.113.0",
     "tavily-python>=0.3.0",
+    "instructor>=0.4.6",
 ]
 requires-python = ">=3.9"
 readme = "README.md"

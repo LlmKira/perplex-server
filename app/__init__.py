@@ -3,74 +3,57 @@
 # @Author  : sudoskys
 # @File    : __init__.py.py
 from pprint import pprint
+from typing import List
 
-import requests
+import instructor
 from fastapi import FastAPI, Request, HTTPException
 from loguru import logger
+from openai import AsyncOpenAI
+from pydantic import BaseModel, Field
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 
+from app.search import SearchEngineManager, SearchEngineResult
 from app.settings import CurrentSetting
 
+SEARCH_MANAGER = SearchEngineManager()
 OPENAI_API_KEY = CurrentSetting.openai_api_key
 OPENAI_BASE_URL = CurrentSetting.openai_base_url
 OPENAI_MODEL = CurrentSetting.openai_model
 
 SYSTEM_PROMPT = """
-1. 每句话需要添加来源，格式为：“上标数字”。 例如：[¹](https://examplelink1.com/)。
-2. 来源链接不能放在回答末尾。
-3. 建议优先使用在线数据。
-4. 来源标记只能是在线数据的链接。
-5. 您的回答应避免给出过时、不存在或虚假的内容或不正确的语法。
-同时，这里有一些搜索的示例：
-用户：皇马对阵切尔西
-系统：<!--<隐藏在线数据>--> 
-您好！👋 我是 GPT5。根据从网上数据中找到的信息，皇家马德里在2022/2023赛季欧洲冠军联赛四分之一决赛首回合于2023年4月12日在圣地亚哥伯纳乌举行了与切尔西的比赛¹ (https://theathletic.com/live-blogs/real-madrid-chelsea-champions-league-live-scores-updates-result/uVCAEHzxwQa9/)。两场比赛中，皇马以2-0的比分获胜，本泽马和阿森西奥均打入一球² (https://www.sportingnews.com/us/soccer/news/real-madrid-vs-chelsea-live-score-highlights-champions-league/ocvgfhg2jhsvtdhh9nbfhx7m)。在第74分钟，阿森西奥在左路完成一个漂亮的进球，为皇马锁定了胜利³ (https://www.theguardian.com/football/live/2023/apr/12/real-madrid-v-chelsea-champions-league-quarter-final-first-leg-live-score-updates)。据欧足联技术观察员小组称， 文森特-朱尼奥是比赛的最佳球员⁴ (https://www.independent.co.uk/sport/football/real-madrid-chelsea-live-stream-score-result-b2318505.html)。
-<!--<Rule End>-->
+1. Each sentence needs to add the source, the format is: "superscript number". For example: [¹](https://examplelink1.com/).
+2. The source link cannot be placed at the end of the answer.
+3. It is recommended to give priority to online data.
+4. Source tags can only be links to online data.
+5. Your answer should avoid giving outdated, non-existent or false content or incorrect grammar.
+In the meantime, here are some examples of searches:
+System: <!--<Hide online doc>-->
+User: Real Madrid vs. Chelsea?
+Assistant: Hello! 👋 I AM GPT4. According to information found from online data, Real Madrid played Chelsea in the first leg of the 2022/2023 UEFA Champions League quarter-finals at the Santiago Bernabeu on April 12, 2023 [¹](https:// examplelink1.com/). In the two games, Real Madrid won 2-0, with Benzema and Asensio both scoring a goal[²](https://examplelink2.com/).
 """
-TOOLS = [{
-    'name': 'search_in_google',
-    'description': 'Get info on google.com to answer questions more accurately',
-    'parameters': {
-        'type': 'object',
-        'properties': {
-            'query': {
-                'type': 'string',
-                'description': 'the question entered in the search box.'
-            },
-            'search_term': {
-                'type': 'string',
-                'description': 'the search term entered in the search box.'
-            },
-        },
-        'required': [
-            'query'
-        ]
-    }
-}]
+
+
+class SearchInWeb(BaseModel):
+    """
+    Get info on google.com to answer questions more accurately
+    """
+    query: str = Field(
+        description="the question entered in the search box. For example: What is the capital of California?"
+    )
 
 
 # 获取 search 的patch后，我们请求数据，然后获取需要的搜索词，然后转变为system消息放回原请求
 @retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-def get_search_request(messages, force: bool = False, model=OPENAI_MODEL):
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + OPENAI_API_KEY,
-    }
-    json_data = {"model": model, "messages": messages}
-    json_data.update({"tools": TOOLS})
-    # if tool_choice is not None:
-    #    json_data.update({"tool_choice": tool_choice})
-    try:
-        response = requests.post(
-            f"{OPENAI_BASE_URL}/chat/completions",
-            headers=headers,
-            json=json_data,
-        )
-        return response
-    except Exception as e:
-        print("Unable to generate ChatCompletion response")
-        logger.exception(e)
-        return e
+async def get_search_request(messages: list, model: str = OPENAI_MODEL):
+    assert isinstance(messages, list)
+    aclient = instructor.apatch(AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY))
+    model = await aclient.chat.completions.create(
+        model=model,
+        response_model=SearchInWeb,
+        max_retries=2,
+        messages=messages,
+    )
+    return model
 
 
 class ValidationError(Exception):
@@ -85,15 +68,69 @@ async def root():
     return {"message": "Server Running"}
 
 
+def build_search_client(bottom_prompt: str):
+    if '/g' in bottom_prompt:
+        return SEARCH_MANAGER.build(engine="google")
+    elif '/t' in bottom_prompt:
+        return SEARCH_MANAGER.build(engine="tavily")
+    else:
+        return SEARCH_MANAGER.build(engine="google")
+
+
+def search_in_web(prompt: str, query: str):
+    client = build_search_client(bottom_prompt=prompt)
+    search_result = client.search(search_term=query)
+    pprint(search_result)
+    return search_result
+
+
+def build_search_tips(search_items: List[SearchEngineResult], limit=5):
+    search_tips = []
+    for index, item in enumerate(search_items):
+        if index >= limit:
+            break
+        search_tips.append(
+            f"<doc id={index} link={item.link} title={item.title}> "
+            f"\n{item.snippet}\n"
+            f"<doc>"
+        )
+    return "Search Result:\n" + "\n".join(search_tips)
+
+
 @app.post("/v1/chat/completions")
 async def forward_request(request: Request):
     # 获取请求的全部参数
-    all_params = await request.json()
+    all_params: dict = await request.json()
+    logger.info(all_params)
     # 修改参数
-    pprint(all_params)
     message = all_params.get("messages", None)
     if not isinstance(message, list) or len(message) == 0:
         return HTTPException(status_code=400, detail="Invalid Message Parameter")
-
-    # 转发请求
+    # 获取prompt 信息
+    prompt = [item.get("content", "") for item in message if item.get("role", "") == "user"][-1]
+    if not isinstance(prompt, str):
+        return HTTPException(status_code=400, detail="Invalid Prompt Parameter")
+    # 获取搜索词
+    try:
+        search_request = await get_search_request(message, model=OPENAI_MODEL)
+    except Exception as e:
+        logger.error(f"Error: {e} when getting search {prompt}")
+        return HTTPException(status_code=500, detail="Search Request Failed")
+    logger.info(search_request)
+    # 获取搜索结果
+    search_result = search_in_web(prompt=prompt, query=search_request.query)
+    # 构建返回消息
+    message.reverse()
+    message.append({"role": "system", "content": SYSTEM_PROMPT})
+    message.reverse()
+    # ------------------------#
+    message.append({"role": "system", "content": build_search_tips(search_result)})
+    all_params.update({"messages": message})
+    # ------------------------#
+    logger.warning("Test Search Result")
+    messgae = await AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY).chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=message,
+    )
+    logger.warning(messgae)
     return all_params
