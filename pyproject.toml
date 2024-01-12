@@ -1,0 +1,32 @@
+[project]
+name = ""
+version = ""
+description = ""
+authors = [
+    {name = "n", email = "n"},
+]
+dependencies = [
+    "loguru>=0.7.2",
+    "aiofiles>=23.2.1",
+    "fastapi>=0.105.0",
+    "uvicorn>=0.24.0.post1",
+    "python-multipart>=0.0.6",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "toml>=0.10.2",
+    "requests[socks]>=2.31.0",
+    "pydantic>=2.5.3",
+    "openai>=1.7.0",
+    "tenacity>=8.2.3",
+    "google-api-python-client>=2.113.0",
+    "tavily-python>=0.3.0",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "n"}
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pre-commit>=3.6.0",
+    "pytest>=7.4.3",
+]
