@@ -21,6 +21,7 @@ dependencies = [
     "google-api-python-client>=2.113.0",
     "tavily-python>=0.3.0",
     "instructor>=0.4.6",
+    "tiktoken>=0.5.1",
 ]
 requires-python = ">=3.9"
 readme = "README.md"

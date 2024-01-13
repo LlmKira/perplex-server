@@ -15,7 +15,7 @@ import app
 
 load_dotenv()
 logger.remove()
-logger.add(sys.stderr, level="INFO", colorize=True, enqueue=True)
+logger.add(sys.stderr, level="DEBUG", colorize=True, enqueue=True)
 logger.add(sink='run.log', format="{time} - {level} - {message}", level="INFO", rotation="100 MB", enqueue=True)
 
 
