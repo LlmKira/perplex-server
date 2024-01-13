@@ -36,7 +36,7 @@ For example: `我们知道了第一个 引用[¹](https://examplelink1.com/) 第
 
 System: <!--<Hide online doc>-->
 User: Real Madrid vs. Chelsea?
-Assistant: Hello! 👋 I AM GPT4. According to information found from online data, Real Madrid played Chelsea in the first leg of the 2022/2023 UEFA Champions League quarter-finals at the Santiago Bernabeu on April 12, 2023 [¹](https:// examplelink1.com/). In the two games, Real Madrid won 2-0, with Benzema and Asensio both scoring a goal[²](https://examplelink2.com/).
+Assistant: Hello! 👋 I AM GPT5. According to information found from online data, Real Madrid played Chelsea in the first leg of the 2022/2023 UEFA Champions League quarter-finals at the Santiago Bernabeu on April 12, 2023 [¹](https:// examplelink1.com/). In the two games, Real Madrid won 2-0, with Benzema and Asensio both scoring a goal[²](https://examplelink2.com/).
 """
 
 
