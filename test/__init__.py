@@ -108,4 +108,5 @@ async def main(prompt) -> Response:
 
 
 while True:
-    asyncio.run(main(getpass()))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(getpass()))
