@@ -114,7 +114,7 @@ def build_search_tips(search_items: List[SearchEngineResult], limit=5):
             f"\n{item.snippet}\n"
             f"<doc>"
         )
-    return "Related Docs:\n" + "\n".join(search_tips)
+    return "Search Api:\n" + "\n".join(search_tips)
 
 
 @app.post("/v1/chat/completions")
