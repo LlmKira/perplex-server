@@ -2,8 +2,10 @@
 # @Time    : 2024/1/11 下午11:07
 # @File    : search.py
 # @Software: PyCharm
+import json
 from typing import List
 
+import requests
 from googleapiclient.discovery import build
 from loguru import logger
 from pydantic import BaseModel
@@ -74,6 +76,35 @@ class TavilySearchEngine(SearchEngine):
                     snippet=item.get("content", "Undefined")
                 )
             )
+        _result = _result[:5]
+        return _result
+
+
+class SerperSearchEngine(SearchEngine):
+    api_key: str
+
+    async def search(self, search_term: str) -> List[SearchEngineResult]:
+        url = "https://google.serper.dev/search"
+        payload = json.dumps({
+            "q": search_term,
+        })
+        headers = {
+            'X-API-KEY': self.api_key,
+            'Content-Type': 'application/json'
+        }
+        response = requests.request("POST", url, headers=headers, data=payload)
+        result_list = response.json()["organic"]
+        _result = []
+        logger.debug(f"Got {len(result_list)} results")
+        for item in result_list:
+            _result.append(
+                SearchEngineResult(
+                    title=item.get("title", "Undefined"),
+                    link=item.get("link", "Undefined"),
+                    snippet=item.get("snippet", "Undefined")
+                )
+            )
+        _result = _result[:4]
         return _result
 
 
@@ -81,6 +112,7 @@ class SearchEngineManager(BaseSettings):
     google_api_key: str
     google_cse_id: str
     tavily_api_key: str
+    serper_api_key: str
 
     def build(self, engine: str, **kwargs):
         if engine == "google":
@@ -91,6 +123,10 @@ class SearchEngineManager(BaseSettings):
             if not self.tavily_api_key:
                 raise BuildError("tavily_api_key is not set")
             return TavilySearchEngine(api_key=self.tavily_api_key)
+        if engine == "serper":
+            if not self.serper_api_key:
+                raise BuildError("serper_api_key is not set")
+            return SerperSearchEngine(api_key=self.serper_api_key)
         raise BuildError(f"Engine {engine} not implemented, please select from google, tavily")
 
     def warn_check(self):

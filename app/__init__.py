@@ -2,6 +2,7 @@
 # @Time    : 2023/12/15 上午1:26
 # @Author  : sudoskys
 # @File    : __init__.py.py
+import time
 from typing import List
 
 import instructor
@@ -11,7 +12,6 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from tenacity import retry, wait_random_exponential, stop_after_attempt, retry_if_not_exception_type
 
-from app.compress import num_tokens_from_messages
 from app.search import SearchEngineManager, SearchEngineResult, BuildError
 from app.settings import CurrentSetting
 
@@ -21,22 +21,26 @@ OPENAI_API_KEY = CurrentSetting.openai_api_key
 OPENAI_BASE_URL = CurrentSetting.openai_base_url
 OPENAI_MODEL = CurrentSetting.openai_model
 
+SENSOR_PROMPT = """Tips:
+"""
+
 SYSTEM_PROMPT = """
-You are given a list of search results.
+You are given a list of knowledge points, Respond to users creatively and in detail.
 
-每句话需要添加来源，格式为：“上标数字”。 例如：[¹](https://examplelink1.com/)。
-来源链接不能放在回答末尾，而是放在文本中间。 例如：我们知道了第一个 引用[¹](https://examplelink1.com/) ，完毕。
+[Obey Following Rule]
+- Every sentence needs to add a source, in the format of "[superscript number](source link)". For example: [¹](https://examplelink1.com/).
+- The source link should not be placed at the end of the answer.
+- It is recommended to prioritize the use of online data.
+- Source markers can only be links to online data.
+- Your answers should avoid providing outdated, non-existent, or false information, as well as incorrect grammar.
+- Please pay attention to the details and correlations of events as much as possible.
 
-Cite search results using [${superscript_number}] notation. 
-Only cite the most relevant results that answer the question accurately. 
- 
-If different results refer to different entities within the same name, write separate answers for each entity. 
-If you want to cite multiple results for the same sentence, format it as `[${superscript_number1}](link1) [${superscript_number2}](link2)`. 
-For example: `我们知道了第一个 引用[¹](https://examplelink1.com/) 第二个引用[²](https://examplelink2.com/) ，结尾`
+- Cite search results using [${superscript_number}] notation. 
+- Only cite the most relevant results that answer the question accurately. 
+- If different results refer to different entities within the same name, write separate answers for each entity. 
+- If you want to cite multiple results for the same sentence, format it as `[${superscript_number1}](link1) [${superscript_number2}](link2)`. 
 
-System: <!--<Hide online doc>-->
-User: Real Madrid vs. Chelsea?
-Assistant: Hello! 👋 I AM GPT5. According to information found from online data, Real Madrid played Chelsea in the first leg of the 2022/2023 UEFA Champions League quarter-finals at the Santiago Bernabeu on April 12, 2023 [¹](https:// examplelink1.com/). In the two games, Real Madrid won 2-0, with Benzema and Asensio both scoring a goal[²](https://examplelink2.com/).
+Reply Example: `我们知道了第一个 引用[¹](https://examplelink1.com/) 第二个引用[²](https://examplelink2.com/) ，结尾。`
 """
 
 
@@ -53,6 +57,9 @@ class SearchInWeb(BaseModel):
 @retry(reraise=True, wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3))
 async def get_search_request(messages: list, model: str = OPENAI_MODEL):
     assert isinstance(messages, list)
+    now_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    now_time_prompt = f"<CurrentTime={now_time}>"
+    messages.append({"role": "system", "content": f"{SENSOR_PROMPT}{now_time_prompt}"})
     aclient = instructor.apatch(AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY))
     model = await aclient.chat.completions.create(
         model=model,
@@ -75,24 +82,17 @@ async def root():
     return {"message": "Server Running"}
 
 
-def build_search_client(bottom_prompt: str):
-    if '/g' in bottom_prompt:
-        return SEARCH_MANAGER.build(engine="google")
-    elif '/t' in bottom_prompt:
-        return SEARCH_MANAGER.build(engine="tavily")
-    else:
-        return SEARCH_MANAGER.build(engine="google")
-
-
 @retry(reraise=True,
        wait=wait_random_exponential(multiplier=1, max=10),
        stop=stop_after_attempt(3),
        retry=retry_if_not_exception_type(BuildError))
 async def search_in_web(prompt: str, query: str):
-    if '/g' in prompt:
+    if prompt.strip().startswith("/g"):
         engine = "google"
-    elif '/t' in prompt:
+    elif prompt.strip().startswith("/t"):
         engine = "tavily"
+    elif prompt.strip().startswith("/s"):
+        engine = "serper"
     else:
         engine = "google"
     logger.debug(f"Search Engine: {engine}")
@@ -114,7 +114,7 @@ def build_search_tips(search_items: List[SearchEngineResult], limit=5):
             f"\n{item.snippet}\n"
             f"<doc>"
         )
-    return "Search Result:\n" + "\n".join(search_tips)
+    return "Related Docs:\n" + "\n".join(search_tips)
 
 
 @app.post("/v1/chat/completions")
@@ -126,9 +126,6 @@ async def forward_request(request: Request):
     message = all_params.get("messages", None)
     if not isinstance(message, list) or len(message) == 0:
         return HTTPException(status_code=400, detail="Invalid Message Parameter")
-
-    ori = num_tokens_from_messages(message)
-    logger.debug(f"Original Tokens: {ori}")
     # 获取prompt 信息
     prompt = [item.get("content", "") for item in message if item.get("role", "") == "user"][-1]
     if not isinstance(prompt, str):
@@ -144,21 +141,9 @@ async def forward_request(request: Request):
     search_result = await search_in_web(prompt=prompt, query=search_request.search_term)
     # 构建返回消息
     message.reverse()
-    message.append({"role": "system", "content": SYSTEM_PROMPT})
+    message.append({"role": "system", "content": f"{SYSTEM_PROMPT}"})
     message.reverse()
     # ------------------------#
     message.append({"role": "system", "content": build_search_tips(search_result)})
     all_params.update({"messages": message})
-
-    # TODO Delete Test Selection
-    # ------------------------#
-    logger.warning("Test Search Result")
-    aft = num_tokens_from_messages(message)
-    logger.debug(f"After Tokens: {aft}")
-    messgae = await AsyncOpenAI(base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY).chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=message,
-    )
-    logger.warning("\n" + messgae.choices[0].message.content)
-    logger.warning(messgae.usage)
     return all_params
