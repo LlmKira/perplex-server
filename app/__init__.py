@@ -142,8 +142,8 @@ async def forward_request(request: Request):
     # 构建返回消息
     message.reverse()
     message.append({"role": "system", "content": f"{SYSTEM_PROMPT}"})
-    message.reverse()
     # ------------------------#
     message.append({"role": "system", "content": build_search_tips(search_result)})
+    message.reverse()
     all_params.update({"messages": message})
     return all_params
