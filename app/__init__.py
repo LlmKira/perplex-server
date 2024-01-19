@@ -82,19 +82,25 @@ async def root():
     return {"message": "Server Running"}
 
 
-@retry(reraise=True,
-       wait=wait_random_exponential(multiplier=1, max=10),
-       stop=stop_after_attempt(3),
-       retry=retry_if_not_exception_type(BuildError))
-async def search_in_web(prompt: str, query: str):
+def check_prompt(prompt: str):
+    engine = None
     if prompt.strip().startswith("/g"):
         engine = "google"
     elif prompt.strip().startswith("/t"):
         engine = "tavily"
     elif prompt.strip().startswith("/s"):
         engine = "serper"
+    if engine is None:
+        raise ValidationError("Invalid Prompt Parameter")
     else:
-        engine = "google"
+        return engine
+
+
+@retry(reraise=True,
+       wait=wait_random_exponential(multiplier=1, max=10),
+       stop=stop_after_attempt(3),
+       retry=retry_if_not_exception_type(BuildError))
+async def search_in_web(query: str, engine: str):
     logger.debug(f"Search Engine: {engine}")
     logger.debug(f"Search Query: {query}")
     search_result = await SEARCH_MANAGER.search(engine=engine, search_term=query)
@@ -125,20 +131,32 @@ async def forward_request(request: Request):
     # 修改参数
     message = all_params.get("messages", None)
     if not isinstance(message, list) or len(message) == 0:
-        return HTTPException(status_code=400, detail="Invalid Message Parameter")
+        return HTTPException(status_code=403, detail="Invalid Message Parameter")
     # 获取prompt 信息
     prompt = [item.get("content", "") for item in message if item.get("role", "") == "user"][-1]
     if not isinstance(prompt, str):
-        return HTTPException(status_code=400, detail="Invalid Prompt Parameter")
+        return HTTPException(status_code=403, detail="Invalid Prompt Parameter")
     # 获取搜索词
+    try:
+        engine = check_prompt(prompt)
+    except ValidationError as e:
+        logger.error(f"Check Prompt: {e} when getting prompt {prompt}")
+        return HTTPException(status_code=401, detail="No Flag Found")
     try:
         search_request = await get_search_request(message, model=OPENAI_MODEL)
     except Exception as e:
         logger.error(f"Build Search Param: {e} when getting search {prompt}")
-        return HTTPException(status_code=500, detail="Search Request Failed")
+        return HTTPException(status_code=402, detail="Build search_term Failed")
     logger.debug(search_request)
     # 获取搜索结果
-    search_result = await search_in_web(prompt=prompt, query=search_request.search_term)
+    try:
+        search_result = await search_in_web(
+            query=search_request.search_term,
+            engine=engine
+        )
+    except Exception as e:
+        logger.exception(f"Search In Web: {e} when getting search {prompt}")
+        return HTTPException(status_code=405, detail="Search In Web Req Failed")
     # 构建返回消息
     message.reverse()
     message.append({"role": "system", "content": f"{SYSTEM_PROMPT}"})

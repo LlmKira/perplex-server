@@ -64,6 +64,8 @@ class TavilySearchEngine(SearchEngine):
         return TavilyClient(api_key=self.api_key)
 
     async def search(self, search_term: str) -> List[SearchEngineResult]:
+        assert isinstance(search_term, str), f"search_term should be a str, but got {type(search_term)}"
+        search_term = search_term + " ?"
         response = self.client.search(query=search_term, search_depth="basic")
         context = [obj for obj in response.get("results", [])]
         _result = []

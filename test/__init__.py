@@ -80,7 +80,12 @@ async def main(prompt) -> Response:
     logger.info(f"Perplex Server Cost Time: {time2 - time1} ms as {cost_time} s")
     # TODO Delete Test Selection
     # ------------------------#
-    message = response.json()["messages"]
+    try:
+        message = response.json()["messages"]
+    except KeyError as e:
+        logger.error(f"HTTP Error: {e} {response.json()}")
+        await asyncio.sleep(3)
+        return response
     logger.warning("Test Search Result")
     aft = num_tokens_from_messages(message)
     logger.debug(f"After Tokens: {aft}")
