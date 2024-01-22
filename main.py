@@ -38,6 +38,5 @@ class ServerSetting(BaseSettings):
 
 setting = ServerSetting()
 logger.info(f"Docs: http://{setting.server_host}:{setting.server_port}/docs")
-os.environ['HTTP_PROXY'] = 'http://127.0.0.1:7897'
-os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:7897'
+
 uvicorn.run(app.app, host=setting.server_host, port=setting.server_port)

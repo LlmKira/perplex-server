@@ -39,8 +39,8 @@ You are given a list of knowledge points, **answer users in creatively and in de
 
 [Answer Format:strict mode]
     Format:
-       <!--body: 遵守引用格式[¹](https://examplelink1.com/) 按照标注WIKI标注[²](https://examplelink2.com/) --> 
-       <!--refer: 参考部分 -->
+        <遵守引用格式[¹](https://examplelink1.com/) 按照标注WIKI标注[²](https://examplelink2.com/)>
+        <参考部分>
     
     Example:
        这个问题[¹](https://examplelink1.com/) 的答案是[²](https://examplelink2.com/)。
