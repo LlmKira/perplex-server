@@ -5,7 +5,6 @@
 
 import asyncio
 import time
-from getpass import getpass
 
 import requests
 from loguru import logger
@@ -21,22 +20,22 @@ exp1 = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Who won the world series in 2020?"},
     {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-    {"role": "user", "content": "它在哪里举行的？"},
+    {"role": "user", "content": "Intro？"},
 ]
 
 exp2 = [
     {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "/g 介绍一下孤独摇滚动漫？"},
+    {"role": "user", "content": "/s 介绍一下孤独摇滚动漫？"},
 ]
 
 exp3 = [
     {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "/s 孤独摇滚的主要剧情是什么？"},
+    {"role": "user", "content": "/s 鲁迅和周树人什么关系？"},
 ]
 
 exp4 = [
     {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "/s Bang Dream ItsMyGo的主要剧情是什么？"},
+    {"role": "user", "content": "/g Bang Dream ItsMyGo的主要剧情是什么？"},
 ]
 
 exp5 = [
@@ -114,4 +113,7 @@ async def main(prompt) -> Response:
 
 while True:
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(getpass()))
+    print("/t-tavily /g-google /s-serper usage:<command> <text>")
+    loop.run_until_complete(
+        main(input("Please Input: "))
+    )
