@@ -14,7 +14,7 @@
 
 | Demo3                      | Demo4                      |
 |----------------------------|----------------------------|
-| ![Demo3](./docs/demo5.png) | ![Demo4](./docs/demo6.png) |
+| ![Demo3](./docs/demo3.png) | ![Demo4](./docs/demo4.png) |
 
 > 基于 OpenAI 的 GPT-4 模型。
 
